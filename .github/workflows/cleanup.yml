@@ -1,0 +1,40 @@
+name: cleanup
+
+# When a PR closes, drop the schemas its warehouse build created.
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  drop-pr-schemas:
+    if: vars.DBT_ADAPTER != ''
+    runs-on: ubuntu-latest
+    env:
+      DBT_PROFILES_DIR: profiles/${{ vars.DBT_ADAPTER }}
+      DBT_CI_SCHEMA: ci_pr_${{ github.event.pull_request.number }}
+      DBT_HOST: ${{ vars.DBT_HOST }}
+      DBT_ACCOUNT: ${{ vars.DBT_ACCOUNT }}
+      DBT_DATABASE: ${{ vars.DBT_DATABASE }}
+      DBT_WAREHOUSE: ${{ vars.DBT_WAREHOUSE }}
+      DBT_ROLE: ${{ vars.DBT_CI_ROLE }}
+      DBT_USER: ${{ secrets.DBT_USER }}
+      DBT_PRIVATE_KEY: ${{ secrets.DBT_PRIVATE_KEY }}
+      DBT_TENANT_ID: ${{ secrets.DBT_TENANT_ID }}
+      DBT_CLIENT_ID: ${{ secrets.DBT_CLIENT_ID }}
+      DBT_CLIENT_SECRET: ${{ secrets.DBT_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-dbt
+        with:
+          adapter: ${{ vars.DBT_ADAPTER }}
+      - uses: google-github-actions/auth@v2
+        if: vars.DBT_ADAPTER == 'bigquery'
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - run: dbt run-operation drop_ci_schemas --target ci_warehouse

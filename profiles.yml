@@ -1,0 +1,15 @@
+# Local and CI targets run on DuckDB: no credentials, no warehouse cost, synthetic data only.
+# Warehouse targets (ci_warehouse, prod) live in profiles/<adapter>/profiles.yml.
+medallion:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('DBT_DUCKDB_PATH', 'dev.duckdb') }}"
+      schema: "dev_{{ env_var('USER', 'me') | lower | replace('.', '_') | replace('-', '_') }}"
+      threads: 4
+    ci:
+      type: duckdb
+      path: ci.duckdb
+      schema: ci
+      threads: 4

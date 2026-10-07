@@ -1,0 +1,12 @@
+[sqlfluff]
+# Lints the SQL dbt compiles for the CI target. Swap the dialect if CI moves off DuckDB.
+dialect = duckdb
+templater = dbt
+max_line_length = 120
+# Layout rules are style, not correctness. The gate stays on things that break.
+exclude_rules = LT01, LT02, LT05, LT09, ST06, AM04, RF04, CP02
+
+[sqlfluff:templater:dbt]
+project_dir = .
+profiles_dir = .
+target = ci

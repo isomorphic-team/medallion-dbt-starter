@@ -1,0 +1,59 @@
+name: deploy
+
+# Merge to main, or the daily schedule: build prod. One run at a time, never cancelled
+# mid-flight, so a merge and the schedule can't write the same tables at once.
+# Skipped until the repo variable DBT_ADAPTER is set.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 10 * * *"   # daily, 10:17 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    if: vars.DBT_ADAPTER != ''
+    runs-on: ubuntu-latest
+    environment: production   # add required reviewers here if prod needs a human gate
+    env:
+      DBT_PROFILES_DIR: profiles/${{ vars.DBT_ADAPTER }}
+      DBT_HOST: ${{ vars.DBT_HOST }}
+      DBT_ACCOUNT: ${{ vars.DBT_ACCOUNT }}
+      DBT_DATABASE: ${{ vars.DBT_DATABASE }}
+      DBT_WAREHOUSE: ${{ vars.DBT_WAREHOUSE }}
+      DBT_ROLE: ${{ vars.DBT_PROD_ROLE }}
+      DBT_USER: ${{ secrets.DBT_USER }}
+      DBT_PRIVATE_KEY: ${{ secrets.DBT_PRIVATE_KEY }}
+      DBT_TENANT_ID: ${{ secrets.DBT_TENANT_ID }}
+      DBT_CLIENT_ID: ${{ secrets.DBT_CLIENT_ID }}
+      DBT_CLIENT_SECRET: ${{ secrets.DBT_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-dbt
+        with:
+          adapter: ${{ vars.DBT_ADAPTER }}
+      - uses: google-github-actions/auth@v2
+        if: vars.DBT_ADAPTER == 'bigquery'
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - run: dbt deps
+      # build, not run-then-test: a failing test stops everything downstream of it.
+      - run: dbt build --target prod
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: prod-artifacts
+          path: |
+            target/manifest.json
+            target/run_results.json
+          retention-days: 30

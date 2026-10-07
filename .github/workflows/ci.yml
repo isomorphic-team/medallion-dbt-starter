@@ -1,0 +1,70 @@
+name: ci
+
+# Every pull request: lint, then build and test the whole project.
+#   build      DuckDB on the synthetic seeds. No credentials, always runs.
+#   warehouse  The same build in the real warehouse, in a schema per PR (ci_pr_<n>_*).
+#              Runs once the repo variable DBT_ADAPTER is set. Still synthetic data:
+#              nothing in CI reads production.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write   # only used for BigQuery workload identity
+
+jobs:
+  build:
+    name: lint and build (DuckDB)
+    runs-on: ubuntu-latest
+    env:
+      DBT_PROFILES_DIR: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-dbt
+      - run: dbt deps
+      - run: dbt seed --target ci
+      - run: sqlfluff lint models tests
+      - run: dbt build --target ci --exclude resource_type:seed
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ci-run-results
+          path: target/run_results.json
+
+  warehouse:
+    name: build (${{ vars.DBT_ADAPTER }})
+    needs: build
+    if: vars.DBT_ADAPTER != '' && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      DBT_PROFILES_DIR: profiles/${{ vars.DBT_ADAPTER }}
+      DBT_CI_SCHEMA: ci_pr_${{ github.event.pull_request.number }}
+      DBT_HOST: ${{ vars.DBT_HOST }}
+      DBT_ACCOUNT: ${{ vars.DBT_ACCOUNT }}
+      DBT_DATABASE: ${{ vars.DBT_DATABASE }}
+      DBT_WAREHOUSE: ${{ vars.DBT_WAREHOUSE }}
+      DBT_ROLE: ${{ vars.DBT_CI_ROLE }}
+      DBT_USER: ${{ secrets.DBT_USER }}
+      DBT_PRIVATE_KEY: ${{ secrets.DBT_PRIVATE_KEY }}
+      DBT_TENANT_ID: ${{ secrets.DBT_TENANT_ID }}
+      DBT_CLIENT_ID: ${{ secrets.DBT_CLIENT_ID }}
+      DBT_CLIENT_SECRET: ${{ secrets.DBT_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-dbt
+        with:
+          adapter: ${{ vars.DBT_ADAPTER }}
+      - uses: google-github-actions/auth@v2
+        if: vars.DBT_ADAPTER == 'bigquery'
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - run: dbt deps
+      - run: dbt seed --target ci_warehouse
+      - run: dbt build --target ci_warehouse --exclude resource_type:seed

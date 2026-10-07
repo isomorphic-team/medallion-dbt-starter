@@ -1,0 +1,12 @@
+version: 2
+
+# Raw is owned by the loader (dlt, Fivetran, a file drop). dbt never writes here in prod.
+# In dev and CI, `dbt seed` fills it with the synthetic files in seeds/raw/.
+sources:
+  - name: raw
+    schema: "{{ var('raw_schema', 'raw' if target.name == 'prod' else target.schema ~ '_raw') }}"
+    tables:
+      - name: raw_deals
+      - name: raw_stores
+      - name: raw_inventory
+      - name: raw_sales

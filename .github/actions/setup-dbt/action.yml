@@ -1,0 +1,30 @@
+name: setup-dbt
+description: Install Python, dbt and the warehouse adapter named by `adapter` (empty means DuckDB only).
+inputs:
+  adapter:
+    description: fabric | snowflake | bigquery | empty
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        cache: pip
+    - name: Install dbt
+      shell: bash
+      run: pip install -r requirements.txt
+    - name: Install warehouse adapter
+      if: inputs.adapter != ''
+      shell: bash
+      run: pip install -r "profiles/${{ inputs.adapter }}/requirements.txt"
+    - name: Install SQL Server ODBC driver
+      if: inputs.adapter == 'fabric'
+      shell: bash
+      run: |
+        if ! odbcinst -q -d | grep -q "ODBC Driver 18"; then
+          curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc >/dev/null
+          curl -sSL "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list" | sudo tee /etc/apt/sources.list.d/mssql-release.list >/dev/null
+          sudo apt-get update -q && sudo ACCEPT_EULA=Y apt-get install -yq msodbcsql18
+        fi

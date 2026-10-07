@@ -1,0 +1,64 @@
+version: 2
+
+# Gold is what people and agents read. Every column a dashboard, skill or data agent
+# uses gets a description and a test. If it isn't documented, it isn't gold.
+models:
+  - name: gold__deal_recovery
+    description: One row per deal. Recovery against opening cost value.
+    data_tests:
+      - unique_grain:
+          arguments:
+            columns: [deal_id]
+    columns:
+      - name: deal_id
+        description: Deal identifier from the source system.
+        data_tests: [not_null]
+      - name: cost_value
+        description: Opening units times unit cost, summed across stores and SKUs.
+        data_tests: [not_null, non_negative]
+      - name: net_sales
+        description: Gross sales less discounts.
+        data_tests: [not_null, non_negative]
+      - name: recovery_rate
+        description: Net sales divided by cost value. Null when cost value is zero. Placeholder definition, see macros/metrics.sql.
+      - name: sell_through
+        description: Units sold divided by opening units. Null when opening units are zero.
+
+  - name: gold__store_performance
+    description: One row per deal and store.
+    data_tests:
+      - unique_grain:
+          arguments:
+            columns: [deal_id, store_number]
+    columns:
+      - name: store_key
+        data_tests: [not_null, unique]
+      - name: net_sales
+        data_tests: [not_null, non_negative]
+      - name: recovery_rate
+        description: Same definition as gold__deal_recovery.recovery_rate.
+
+unit_tests:
+  - name: deal_recovery_handles_zero_cost_and_no_sales
+    description: Zero cost value gives a null rate, not a divide-by-zero. A deal with no sales shows zero, not null.
+    model: gold__deal_recovery
+    given:
+      - input: ref('silver__deals')
+        rows:
+          - {deal_id: D1, status: closed}
+          - {deal_id: D2, status: active}
+          - {deal_id: D3, status: active}
+      - input: ref('silver__inventory_position')
+        rows:
+          - {deal_id: D1, units_on_hand: 100, cost_value: 1000}
+          - {deal_id: D2, units_on_hand: 0, cost_value: 0}
+          - {deal_id: D3, units_on_hand: 50, cost_value: 500}
+      - input: ref('silver__sales_daily')
+        rows:
+          - {deal_id: D1, units_sold: 50, net_sales: 600}
+          - {deal_id: D2, units_sold: 0, net_sales: 0}
+    expect:
+      rows:
+        - {deal_id: D1, net_sales: 600, recovery_rate: 0.6, sell_through: 0.5}
+        - {deal_id: D2, net_sales: 0, recovery_rate: null, sell_through: null}
+        - {deal_id: D3, net_sales: 0, recovery_rate: 0, sell_through: 0}

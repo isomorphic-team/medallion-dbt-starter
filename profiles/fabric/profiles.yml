@@ -1,0 +1,22 @@
+# Microsoft Fabric Warehouse via dbt-fabric. Service principal auth only.
+# Bronze can live in a Lakehouse and be read through OneLake shortcuts; set raw_schema to match.
+medallion:
+  target: ci_warehouse
+  outputs:
+    ci_warehouse: &fabric
+      type: fabric
+      driver: "ODBC Driver 18 for SQL Server"
+      server: "{{ env_var('DBT_HOST') }}"
+      port: 1433
+      database: "{{ env_var('DBT_DATABASE') }}"
+      schema: "{{ env_var('DBT_CI_SCHEMA', 'ci') }}"
+      authentication: ServicePrincipal
+      tenant_id: "{{ env_var('DBT_TENANT_ID') }}"
+      client_id: "{{ env_var('DBT_CLIENT_ID') }}"
+      client_secret: "{{ env_var('DBT_CLIENT_SECRET') }}"
+      # Fabric DDL takes catalog locks. Microsoft's guidance is 4 to 8 threads and a 30s query timeout.
+      threads: 4
+      query_timeout: 30
+    prod:
+      <<: *fabric
+      schema: dbo

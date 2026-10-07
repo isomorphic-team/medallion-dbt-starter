@@ -1,0 +1,78 @@
+version: 2
+
+models:
+  - name: silver__deals
+    description: One row per deal.
+    data_tests:
+      - unique_grain:
+          arguments:
+            columns: [deal_id]
+    columns:
+      - name: deal_id
+        data_tests: [not_null]
+
+  - name: silver__stores
+    description: One row per deal and store.
+    data_tests:
+      - unique_grain:
+          arguments:
+            columns: [deal_id, store_number]
+    columns:
+      - name: store_key
+        data_tests: [not_null, unique]
+      - name: deal_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('silver__deals')
+                field: deal_id
+
+  - name: silver__inventory_position
+    description: Opening inventory, one row per deal, store and SKU.
+    data_tests:
+      - unique_grain:
+          arguments:
+            columns: [deal_id, store_number, sku]
+    columns:
+      - name: store_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('silver__stores')
+                field: store_key
+      - name: units_on_hand
+        data_tests: [not_null, non_negative]
+      - name: cost_value
+        data_tests: [not_null, non_negative]
+
+  - name: silver__sales_daily
+    description: Sales, one row per deal, store, SKU and day.
+    data_tests:
+      - unique_grain:
+          arguments:
+            columns: [deal_id, store_number, sku, sale_date]
+    columns:
+      - name: store_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('silver__stores')
+                field: store_key
+      - name: units_sold
+        data_tests: [not_null, non_negative]
+      - name: net_sales
+        data_tests: [not_null, non_negative]
+
+unit_tests:
+  - name: sales_daily_drops_exact_duplicates_and_keeps_distinct_rows
+    description: A re-exported row is dropped. Two real sales on the same grain both count.
+    model: silver__sales_daily
+    given:
+      - input: ref('bronze__sales')
+        rows:
+          - {deal_id: D1, store_number: '1', sku: 'A ', sale_date: '2025-01-01', units_sold: 10, gross_sales: 100, discount_amount: 20}
+          - {deal_id: D1, store_number: '1', sku: 'A ', sale_date: '2025-01-01', units_sold: 10, gross_sales: 100, discount_amount: 20}
+          - {deal_id: D1, store_number: '1', sku: 'A',  sale_date: '2025-01-01', units_sold: 5,  gross_sales: 50,  discount_amount: 0}
+    expect:
+      rows:
+        - {deal_id: D1, store_number: '1', sku: 'A', sale_date: '2025-01-01', units_sold: 15, net_sales: 130}

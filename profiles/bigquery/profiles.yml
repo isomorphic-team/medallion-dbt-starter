@@ -1,0 +1,14 @@
+# BigQuery via dbt-bigquery. Auth through google-github-actions/auth (workload identity) sets ADC.
+medallion:
+  target: ci_warehouse
+  outputs:
+    ci_warehouse: &bigquery
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('DBT_DATABASE') }}"
+      dataset: "{{ env_var('DBT_CI_SCHEMA', 'ci') }}"
+      location: "{{ env_var('DBT_LOCATION', 'US') }}"
+      threads: 8
+    prod:
+      <<: *bigquery
+      dataset: analytics

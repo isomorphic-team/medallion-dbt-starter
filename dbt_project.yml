@@ -1,0 +1,57 @@
+name: medallion
+version: "0.1.0"
+config-version: 2
+profile: medallion
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages", "logs"]
+
+# Layer = schema. See QUICKSTART.md for what belongs in each.
+models:
+  medallion:
+    bronze:
+      +schema: bronze
+      +materialized: view
+    silver:
+      +schema: silver
+      +materialized: table
+    gold:
+      +schema: gold
+      +materialized: table
+
+# Seeds stand in for the loader in dev and CI. Prod reads what the loader lands.
+# Everything lands as text, the way a file drop or Excel export arrives.
+seeds:
+  medallion:
+    raw:
+      +enabled: "{{ target.name != 'prod' }}"
+      +schema: raw
+      +quote_columns: true
+      +column_types:
+        "DEAL_ID": varchar
+        "Store #": varchar
+        "SKU": varchar
+        "Deal Name": varchar
+        "Deal Type": varchar
+        "Start Date": varchar
+        "End Date": varchar
+        "Status": varchar
+        "City": varchar
+        "State": varchar
+        "Sq Ft": varchar
+        "Category": varchar
+        "Units On Hand": varchar
+        "Unit Cost": varchar
+        "Sale Date": varchar
+        "Units Sold": varchar
+        "Gross Sales": varchar
+        "Discount Amt": varchar
+
+# Tests fail the build by default. Downgrade one at a time, on purpose.
+data_tests:
+  medallion:
+    +severity: error

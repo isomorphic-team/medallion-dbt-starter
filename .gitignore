@@ -1,0 +1,10 @@
+target/
+dbt_packages/
+logs/
+*.duckdb
+*.duckdb.wal
+.venv/
+venv/
+.env
+.user.yml
+prod-state/

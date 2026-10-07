@@ -1,0 +1,18 @@
+# Snowflake via dbt-snowflake. Key-pair auth for a dedicated service user.
+medallion:
+  target: ci_warehouse
+  outputs:
+    ci_warehouse: &snowflake
+      type: snowflake
+      account: "{{ env_var('DBT_ACCOUNT') }}"
+      user: "{{ env_var('DBT_USER') }}"
+      private_key: "{{ env_var('DBT_PRIVATE_KEY') }}"
+      role: "{{ env_var('DBT_ROLE') }}"
+      warehouse: "{{ env_var('DBT_WAREHOUSE') }}"
+      database: "{{ env_var('DBT_DATABASE') }}"
+      schema: "{{ env_var('DBT_CI_SCHEMA', 'ci') }}"
+      threads: 8
+      query_tag: "dbt-{{ env_var('DBT_CI_SCHEMA', 'prod') }}"
+    prod:
+      <<: *snowflake
+      schema: public

@@ -1,6 +1,6 @@
-Store #,DEAL_ID,City,State,Sq Ft
-101,D-1001,Columbus,OH,22000
-102,D-1001,Dayton,OH,18500
-201,D-1002,Tacoma,WA,31000
-301,D-1003,Boise,ID,15000
-302,D-1003,Spokane,WA,16500
+Store #,Store Name,City,State,Region,Sq Ft,Opened On
+101,Riverside,Portland,OR,West,12000,2019-04-12
+102,Old Town,Sacramento,CA,West,9500,2021-09-01
+201,Lakeshore,Madison,WI,Midwest,14200,2018-06-30
+202,Hilltop,Columbus,OH,Midwest,11000,2023-03-15
+301,Harborview,Savannah,GA,South,10400,2024-11-02

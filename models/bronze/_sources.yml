@@ -6,7 +6,7 @@ sources:
   - name: raw
     schema: "{{ var('raw_schema', 'raw' if target.name == 'prod' else target.schema ~ '_raw') }}"
     tables:
-      - name: raw_deals
       - name: raw_stores
+      - name: raw_products
       - name: raw_inventory
       - name: raw_sales

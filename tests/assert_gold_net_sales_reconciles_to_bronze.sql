@@ -1,18 +1,20 @@
--- Reconciliation: every dollar in bronze reaches gold, no more and no less.
--- Catches rows dropped or doubled by joins between silver and gold, the failure that
--- compiles, runs and returns a plausible number. Returns rows only when totals disagree.
+-- Reconciliation: every dollar in bronze reaches the sales fact, no more and no less.
+-- Catches rows dropped or doubled by joins between silver and gold (a fan-out on a
+-- dimension, an inner join that loses unknown members), the failure that compiles, runs
+-- and returns a plausible number. Returns rows only when totals disagree.
 with bronze_total as (
     select sum(gross_sales - discount_amount) as net_sales
     from (
-        select distinct deal_id, store_number, trim(sku) as sku, sale_date,
-                        units_sold, gross_sales, discount_amount
+        select distinct
+            trim(store_number) as store_number, upper(trim(sku)) as sku, sale_date,
+            units_sold, gross_sales, discount_amount
         from {{ ref('bronze__sales') }}
     ) as deduplicated
 ),
 
 gold_total as (
     select sum(net_sales) as net_sales
-    from {{ ref('gold__deal_recovery') }}
+    from {{ ref('fct_sales') }}
 )
 
 select b.net_sales as bronze_net_sales, g.net_sales as gold_net_sales

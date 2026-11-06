@@ -1,10 +1,10 @@
--- Grain: one row per deal and store.
--- Store numbers repeat across deals (every retailer has a store 101), so the key includes the deal.
+-- Grain: one row per store.
 select
-    {{ dbt.concat(['deal_id', "'-'", 'store_number']) }} as store_key,
-    deal_id,
-    store_number,
-    city,
-    state,
-    square_feet
+    trim(store_number)  as store_number,
+    trim(store_name)    as store_name,
+    trim(city)          as city,
+    upper(trim(state))  as state,
+    trim(region)        as region,
+    square_feet,
+    opened_on
 from {{ ref('bronze__stores') }}

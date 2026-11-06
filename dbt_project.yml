@@ -10,7 +10,7 @@ test-paths: ["tests"]
 target-path: "target"
 clean-targets: ["target", "dbt_packages", "logs"]
 
-# Layer = schema. See QUICKSTART.md for what belongs in each.
+# Layer = schema. Materializations follow dbt's and Databricks' guidance; see docs/materialization.md.
 models:
   medallion:
     bronze:
@@ -22,6 +22,11 @@ models:
     gold:
       +schema: gold
       +materialized: table
+
+# The calendar dim_date covers. end is exclusive.
+vars:
+  calendar_start: "2025-01-01"
+  calendar_end: "2028-01-01"
 
 # Seeds stand in for the loader in dev and CI. Prod reads what the loader lands.
 # Everything lands as text, the way a file drop or Excel export arrives.
@@ -39,24 +44,24 @@ seeds:
       # Postgres, but means varchar(1) on Fabric/SQL Server and varchar(256) on Redshift,
       # and doesn't exist on BigQuery or Databricks. Add your adapter here if it isn't listed.
       +column_types:
-        "DEAL_ID": &text "{{ {'bigquery': 'string', 'databricks': 'string', 'spark': 'string', 'fabric': 'varchar(8000)', 'sqlserver': 'varchar(8000)', 'synapse': 'varchar(8000)', 'redshift': 'varchar(65535)'}.get(target.type, 'varchar') }}"
-        "Store #": *text
-        "SKU": *text
-        "Deal Name": *text
-        "Deal Type": *text
-        "Start Date": *text
-        "End Date": *text
-        "Status": *text
+        "Store #": &text "{{ {'bigquery': 'string', 'databricks': 'string', 'spark': 'string', 'fabric': 'varchar(8000)', 'sqlserver': 'varchar(8000)', 'synapse': 'varchar(8000)', 'redshift': 'varchar(65535)'}.get(target.type, 'varchar') }}"
+        "Store Name": *text
         "City": *text
         "State": *text
+        "Region": *text
         "Sq Ft": *text
+        "Opened On": *text
+        "SKU": *text
+        "Product Name": *text
         "Category": *text
-        "Units On Hand": *text
         "Unit Cost": *text
+        "List Price": *text
         "Sale Date": *text
         "Units Sold": *text
         "Gross Sales": *text
         "Discount Amt": *text
+        "Count Date": *text
+        "Units On Hand": *text
 
 # Tests fail the build by default. Downgrade one at a time, on purpose.
 data_tests:

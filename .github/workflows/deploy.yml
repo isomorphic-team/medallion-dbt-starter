@@ -27,6 +27,7 @@ jobs:
     env:
       DBT_PROFILES_DIR: profiles/${{ vars.DBT_ADAPTER }}
       DBT_HOST: ${{ vars.DBT_HOST }}
+      DBT_HTTP_PATH: ${{ vars.DBT_HTTP_PATH }}
       DBT_ACCOUNT: ${{ vars.DBT_ACCOUNT }}
       DBT_DATABASE: ${{ vars.DBT_DATABASE }}
       DBT_WAREHOUSE: ${{ vars.DBT_WAREHOUSE }}

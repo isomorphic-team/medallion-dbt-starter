@@ -1,0 +1,18 @@
+# Databricks via dbt-databricks, on a SQL warehouse with Unity Catalog.
+# OAuth machine-to-machine auth for a service principal. DBT_DATABASE is the catalog.
+medallion:
+  target: ci_warehouse
+  outputs:
+    ci_warehouse: &databricks
+      type: databricks
+      host: "{{ env_var('DBT_HOST') }}"
+      http_path: "{{ env_var('DBT_HTTP_PATH') }}"
+      catalog: "{{ env_var('DBT_DATABASE') }}"
+      schema: "{{ env_var('DBT_CI_SCHEMA', 'ci') }}"
+      auth_type: oauth
+      client_id: "{{ env_var('DBT_CLIENT_ID') }}"
+      client_secret: "{{ env_var('DBT_CLIENT_SECRET') }}"
+      threads: 8
+    prod:
+      <<: *databricks
+      schema: default

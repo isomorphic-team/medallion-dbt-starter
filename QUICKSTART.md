@@ -1,6 +1,6 @@
 # Quick start
 
-A dbt starter for a medallion warehouse (raw, bronze, silver, gold) with tests, CI and deploy already wired. It runs on your laptop in about ten minutes against synthetic data, with no warehouse account. When you're ready, one repo variable points it at Fabric, Snowflake or BigQuery.
+A dbt starter for a medallion warehouse (raw, bronze, silver, gold) with tests, CI and deploy already wired. It runs on your laptop in about ten minutes against synthetic data, with no warehouse account. When you're ready, one repo variable points it at Fabric, Snowflake, BigQuery or Databricks.
 
 The example domain is retail inventory sell-down: deals, stores, SKUs, daily sales, and a recovery rate per deal. Replace it with your own sources once the pattern is familiar.
 
@@ -68,13 +68,18 @@ Check the tests themselves. Break the model on purpose (remove the `distinct` in
 ## 5. Connect a warehouse
 
 1. Create a service identity with write access to its own schemas and read access to raw. Nothing broader.
-2. In the GitHub repo, set **Variables**: `DBT_ADAPTER` (`fabric`, `snowflake` or `bigquery`), plus whichever of `DBT_HOST`, `DBT_ACCOUNT`, `DBT_DATABASE`, `DBT_WAREHOUSE`, `DBT_CI_ROLE`, `DBT_PROD_ROLE` your adapter uses. See `profiles/<adapter>/profiles.yml`.
-3. Set **Secrets**: `DBT_CLIENT_ID`, `DBT_CLIENT_SECRET`, `DBT_TENANT_ID` (Fabric), or `DBT_USER`, `DBT_PRIVATE_KEY` (Snowflake). BigQuery uses workload identity through the `GCP_*` variables.
+2. In the GitHub repo, set **Variables**: `DBT_ADAPTER` (the name of a folder under `profiles/`: `fabric`, `snowflake`, `bigquery` or `databricks`), plus whichever of `DBT_HOST`, `DBT_HTTP_PATH`, `DBT_ACCOUNT`, `DBT_DATABASE`, `DBT_WAREHOUSE`, `DBT_CI_ROLE`, `DBT_PROD_ROLE` your adapter uses. See `profiles/<adapter>/profiles.yml`.
+3. Set **Secrets**: `DBT_CLIENT_ID`, `DBT_CLIENT_SECRET`, `DBT_TENANT_ID` (Fabric), `DBT_CLIENT_ID`, `DBT_CLIENT_SECRET` (Databricks service principal), or `DBT_USER`, `DBT_PRIVATE_KEY` (Snowflake). BigQuery uses workload identity through the `GCP_*` variables.
 4. Create a `production` environment under Settings → Environments. Add required reviewers if a human should approve each prod build.
 
 Until `DBT_ADAPTER` is set, the warehouse jobs skip and only the DuckDB build runs.
 
-For a different warehouse, copy one of the `profiles/` folders, swap the adapter, and add its install step to `.github/actions/setup-dbt/action.yml`.
+For a different warehouse:
+
+1. Copy one of the `profiles/` folders and swap the adapter in its `profiles.yml` and `requirements.txt`. The folder name is what `DBT_ADAPTER` takes.
+2. If its profile needs an environment variable the workflows don't pass yet, add it to the `env:` blocks in `ci.yml`, `deploy.yml` and `cleanup.yml`.
+3. If its driver needs a system package (Fabric needs ODBC), add the install step to `.github/actions/setup-dbt/action.yml`.
+4. Check its text type in the seed `+column_types` in `dbt_project.yml`. Unlisted adapters get plain `varchar`, which is wrong on some warehouses.
 
 ## 6. Bring in real sources
 

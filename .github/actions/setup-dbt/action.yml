@@ -2,7 +2,7 @@ name: setup-dbt
 description: Install Python, dbt and the warehouse adapter named by `adapter` (empty means DuckDB only).
 inputs:
   adapter:
-    description: fabric | snowflake | bigquery | empty
+    description: a folder name under profiles/ (fabric, snowflake, bigquery, databricks), or empty
     required: false
     default: ""
 runs:

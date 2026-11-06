@@ -46,6 +46,7 @@ jobs:
       DBT_PROFILES_DIR: profiles/${{ vars.DBT_ADAPTER }}
       DBT_CI_SCHEMA: ci_pr_${{ github.event.pull_request.number }}
       DBT_HOST: ${{ vars.DBT_HOST }}
+      DBT_HTTP_PATH: ${{ vars.DBT_HTTP_PATH }}
       DBT_ACCOUNT: ${{ vars.DBT_ACCOUNT }}
       DBT_DATABASE: ${{ vars.DBT_DATABASE }}
       DBT_WAREHOUSE: ${{ vars.DBT_WAREHOUSE }}

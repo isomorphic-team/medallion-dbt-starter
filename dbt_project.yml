@@ -31,25 +31,32 @@ seeds:
       +enabled: "{{ target.name != 'prod' }}"
       +schema: raw
       +quote_columns: true
+      # Raw headers have spaces and '#'. Delta tables need column mapping to allow them.
+      # Adapters that don't know tblproperties ignore it.
+      +tblproperties:
+        delta.columnMapping.mode: name
+      # One text type per warehouse. Plain varchar is unbounded on DuckDB, Snowflake and
+      # Postgres, but means varchar(1) on Fabric/SQL Server and varchar(256) on Redshift,
+      # and doesn't exist on BigQuery or Databricks. Add your adapter here if it isn't listed.
       +column_types:
-        "DEAL_ID": varchar
-        "Store #": varchar
-        "SKU": varchar
-        "Deal Name": varchar
-        "Deal Type": varchar
-        "Start Date": varchar
-        "End Date": varchar
-        "Status": varchar
-        "City": varchar
-        "State": varchar
-        "Sq Ft": varchar
-        "Category": varchar
-        "Units On Hand": varchar
-        "Unit Cost": varchar
-        "Sale Date": varchar
-        "Units Sold": varchar
-        "Gross Sales": varchar
-        "Discount Amt": varchar
+        "DEAL_ID": &text "{{ {'bigquery': 'string', 'databricks': 'string', 'spark': 'string', 'fabric': 'varchar(8000)', 'sqlserver': 'varchar(8000)', 'synapse': 'varchar(8000)', 'redshift': 'varchar(65535)'}.get(target.type, 'varchar') }}"
+        "Store #": *text
+        "SKU": *text
+        "Deal Name": *text
+        "Deal Type": *text
+        "Start Date": *text
+        "End Date": *text
+        "Status": *text
+        "City": *text
+        "State": *text
+        "Sq Ft": *text
+        "Category": *text
+        "Units On Hand": *text
+        "Unit Cost": *text
+        "Sale Date": *text
+        "Units Sold": *text
+        "Gross Sales": *text
+        "Discount Amt": *text
 
 # Tests fail the build by default. Downgrade one at a time, on purpose.
 data_tests:

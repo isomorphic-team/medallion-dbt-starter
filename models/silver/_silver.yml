@@ -1,78 +1,70 @@
 version: 2
 
+# Silver is cleaned, validated and conformed, still at source grain and keyed on natural keys.
+# Gold builds the dimensional model from it. See docs/modeling.md.
 models:
-  - name: silver__deals
-    description: One row per deal.
-    data_tests:
-      - unique_grain:
-          arguments:
-            columns: [deal_id]
-    columns:
-      - name: deal_id
-        data_tests: [not_null]
-
   - name: silver__stores
-    description: One row per deal and store.
+    description: One row per store, trimmed and conformed.
     data_tests:
       - unique_grain:
           arguments:
-            columns: [deal_id, store_number]
+            columns: [store_number]
     columns:
-      - name: store_key
-        data_tests: [not_null, unique]
-      - name: deal_id
-        data_tests:
-          - relationships:
-              arguments:
-                to: ref('silver__deals')
-                field: deal_id
+      - name: store_number
+        data_tests: [not_null]
+      - name: square_feet
+        data_tests: [non_negative]
 
-  - name: silver__inventory_position
-    description: Opening inventory, one row per deal, store and SKU.
+  - name: silver__products
+    description: One row per SKU, trimmed and upper-cased so it joins to sales.
     data_tests:
       - unique_grain:
           arguments:
-            columns: [deal_id, store_number, sku]
+            columns: [sku]
     columns:
-      - name: store_key
+      - name: sku
+        data_tests: [not_null]
+      - name: unit_cost
+        data_tests: [not_null, non_negative]
+
+  - name: silver__sales
+    description: Sales, one row per store, SKU and day. Exact duplicates dropped.
+    data_tests:
+      - unique_grain:
+          arguments:
+            columns: [store_number, sku, sale_date]
+    columns:
+      - name: store_number
         data_tests:
           - relationships:
               arguments:
                 to: ref('silver__stores')
-                field: store_key
-      - name: units_on_hand
-        data_tests: [not_null, non_negative]
-      - name: cost_value
-        data_tests: [not_null, non_negative]
-
-  - name: silver__sales_daily
-    description: Sales, one row per deal, store, SKU and day.
-    data_tests:
-      - unique_grain:
-          arguments:
-            columns: [deal_id, store_number, sku, sale_date]
-    columns:
-      - name: store_key
-        data_tests:
-          - relationships:
-              arguments:
-                to: ref('silver__stores')
-                field: store_key
+                field: store_number
       - name: units_sold
         data_tests: [not_null, non_negative]
       - name: net_sales
         data_tests: [not_null, non_negative]
 
+  - name: silver__inventory_counts
+    description: Units on hand, one row per store, SKU and count date.
+    data_tests:
+      - unique_grain:
+          arguments:
+            columns: [store_number, sku, count_date]
+    columns:
+      - name: units_on_hand
+        data_tests: [not_null, non_negative]
+
 unit_tests:
-  - name: sales_daily_drops_exact_duplicates_and_keeps_distinct_rows
-    description: A re-exported row is dropped. Two real sales on the same grain both count.
-    model: silver__sales_daily
+  - name: sales_drops_exact_duplicates_and_keeps_distinct_rows
+    description: A re-exported row is dropped. Two real sales on the same grain both count. SKU case and padding are conformed.
+    model: silver__sales
     given:
       - input: ref('bronze__sales')
         rows:
-          - {deal_id: D1, store_number: '1', sku: 'A ', sale_date: '2025-01-01', units_sold: 10, gross_sales: 100, discount_amount: 20}
-          - {deal_id: D1, store_number: '1', sku: 'A ', sale_date: '2025-01-01', units_sold: 10, gross_sales: 100, discount_amount: 20}
-          - {deal_id: D1, store_number: '1', sku: 'A',  sale_date: '2025-01-01', units_sold: 5,  gross_sales: 50,  discount_amount: 0}
+          - {store_number: '101', sku: 'tn-100 ', sale_date: '2026-01-03', units_sold: 4, gross_sales: 796, discount_amount: 0}
+          - {store_number: '101', sku: 'tn-100 ', sale_date: '2026-01-03', units_sold: 4, gross_sales: 796, discount_amount: 0}
+          - {store_number: '101', sku: 'TN-100',  sale_date: '2026-01-03', units_sold: 1, gross_sales: 199, discount_amount: 19.9}
     expect:
       rows:
-        - {deal_id: D1, store_number: '1', sku: 'A', sale_date: '2025-01-01', units_sold: 15, net_sales: 130}
+        - {store_number: '101', sku: 'TN-100', sale_date: '2026-01-03', units_sold: 5, net_sales: 975.1}

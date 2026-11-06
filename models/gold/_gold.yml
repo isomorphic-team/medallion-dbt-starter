@@ -1,64 +1,213 @@
 version: 2
 
-# Gold is what people and agents read. Every column a dashboard, skill or data agent
-# uses gets a description and a test. If it isn't documented, it isn't gold.
+# Gold is what people and agents read: a star schema of dimensions and facts, plus aggregate
+# marts for the most common questions. Every column gets a description; every key gets a test.
+# If it isn't documented, it isn't gold. See docs/modeling.md.
 models:
-  - name: gold__deal_recovery
-    description: One row per deal. Recovery against opening cost value.
+  - name: dim_store
+    description: One row per store, plus an unknown member (store_key '-1') for facts whose store isn't on file.
     data_tests:
       - unique_grain:
           arguments:
-            columns: [deal_id]
+            columns: [store_number]
     columns:
-      - name: deal_id
-        description: Deal identifier from the source system.
-        data_tests: [not_null]
-      - name: cost_value
-        description: Opening units times unit cost, summed across stores and SKUs.
+      - name: store_key
+        description: Surrogate key. Hash of store_number; '-1' for the unknown member.
+        data_tests: [not_null, unique]
+      - name: store_number
+        description: Store number from the source system (natural key).
+      - name: store_name
+        description: Store display name.
+      - name: city
+        description: City the store is in.
+      - name: state
+        description: Two-letter state code.
+      - name: region
+        description: Sales region the store reports to.
+      - name: square_feet
+        description: Selling floor area.
+      - name: opened_on
+        description: Date the store opened.
+
+  - name: dim_product
+    description: One row per SKU, plus an unknown member (product_key '-1') for sales of SKUs not in the product file.
+    data_tests:
+      - unique_grain:
+          arguments:
+            columns: [sku]
+    columns:
+      - name: product_key
+        description: Surrogate key. Hash of sku; '-1' for the unknown member.
+        data_tests: [not_null, unique]
+      - name: sku
+        description: Stock-keeping unit from the source system (natural key), trimmed and upper-cased.
+      - name: product_name
+        description: Product display name.
+      - name: category
+        description: Merchandise category.
+      - name: unit_cost
+        description: Current cost per unit. Null for the unknown member.
+      - name: list_price
+        description: Current list price per unit.
+
+  - name: dim_date
+    description: One row per calendar day between the calendar_start and calendar_end vars.
+    columns:
+      - name: date_key
+        description: The calendar date. Facts join on this.
+        data_tests: [not_null, unique]
+      - name: week_start
+        description: First day of the week, as the warehouse defines it.
+      - name: month_start
+        description: First day of the month.
+      - name: quarter_start
+        description: First day of the quarter.
+      - name: year_start
+        description: First day of the year.
+
+  - name: fct_sales
+    description: Sales, one row per store, SKU and day.
+    data_tests:
+      - unique_grain:
+          arguments:
+            columns: [store_key, sku, date_key]
+    columns:
+      - name: store_key
+        description: Foreign key to dim_store.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_store')
+                field: store_key
+      - name: product_key
+        description: Foreign key to dim_product. '-1' when the SKU isn't in the product file.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: product_key
+      - name: date_key
+        description: Sale date. Foreign key to dim_date.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: sku
+        description: SKU as sold (degenerate dimension). Keeps unknown products traceable.
+      - name: units_sold
+        description: Units sold.
         data_tests: [not_null, non_negative]
+      - name: gross_sales
+        description: Sales before discounts.
+      - name: discount_amount
+        description: Discounts given.
       - name: net_sales
         description: Gross sales less discounts.
         data_tests: [not_null, non_negative]
-      - name: recovery_rate
-        description: Net sales divided by cost value. Null when cost value is zero. Placeholder definition, see macros/metrics.sql.
-      - name: sell_through
-        description: Units sold divided by opening units. Null when opening units are zero.
+      - name: cost_of_goods
+        description: Units sold times current unit cost. Null when the product is unknown.
+      - name: gross_margin
+        description: Net sales less cost of goods. Null when the product is unknown.
 
-  - name: gold__store_performance
-    description: One row per deal and store.
+  - name: fct_inventory_snapshot
+    description: Units on hand, one row per store, SKU and count date. Semi-additive across dates.
     data_tests:
       - unique_grain:
           arguments:
-            columns: [deal_id, store_number]
+            columns: [store_key, sku, date_key]
     columns:
       - name: store_key
-        data_tests: [not_null, unique]
-      - name: net_sales
+        description: Foreign key to dim_store.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_store')
+                field: store_key
+      - name: product_key
+        description: Foreign key to dim_product.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: product_key
+      - name: date_key
+        description: Count date. Foreign key to dim_date.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: sku
+        description: SKU as counted (degenerate dimension).
+      - name: units_on_hand
+        description: Units on hand at the count. Don't sum across count dates.
         data_tests: [not_null, non_negative]
-      - name: recovery_rate
-        description: Same definition as gold__deal_recovery.recovery_rate.
+      - name: cost_value
+        description: Units on hand times current unit cost.
+
+  - name: store_performance
+    description: One row per known store. Sales, margin and sell-through against the first inventory count.
+    data_tests:
+      - unique_grain:
+          arguments:
+            columns: [store_key]
+    columns:
+      - name: store_key
+        description: Foreign key to dim_store.
+        data_tests: [not_null]
+      - name: store_number
+        description: Store number from the source system.
+      - name: store_name
+        description: Store display name.
+      - name: region
+        description: Sales region.
+      - name: opening_units
+        description: Units on hand at the store's first inventory count.
+        data_tests: [not_null, non_negative]
+      - name: units_sold
+        description: Units sold, all days.
+        data_tests: [not_null, non_negative]
+      - name: net_sales
+        description: Net sales, all days, including SKUs with unknown cost.
+        data_tests: [not_null, non_negative]
+      - name: gross_margin
+        description: Net sales less cost of goods, over SKUs with a known cost.
+      - name: gross_margin_rate
+        description: Gross margin over the net sales of SKUs with a known cost. See macros/metrics.sql.
+      - name: sell_through
+        description: Units sold over opening units. Null when opening units are zero. See macros/metrics.sql.
 
 unit_tests:
-  - name: deal_recovery_handles_zero_cost_and_no_sales
-    description: Zero cost value gives a null rate, not a divide-by-zero. A deal with no sales shows zero, not null.
-    model: gold__deal_recovery
+  - name: store_performance_handles_zero_opening_and_no_sales
+    description: Zero opening units give a null sell-through, not a divide-by-zero. A store with no sales shows zero, not null. Unknown cost is left out of the margin rate.
+    model: store_performance
     given:
-      - input: ref('silver__deals')
+      - input: ref('dim_store')
         rows:
-          - {deal_id: D1, status: closed}
-          - {deal_id: D2, status: active}
-          - {deal_id: D3, status: active}
-      - input: ref('silver__inventory_position')
+          - {store_key: s1, store_number: '1'}
+          - {store_key: s2, store_number: '2'}
+          - {store_key: s3, store_number: '3'}
+          - {store_key: '-1', store_number: unknown}
+      - input: ref('fct_inventory_snapshot')
         rows:
-          - {deal_id: D1, units_on_hand: 100, cost_value: 1000}
-          - {deal_id: D2, units_on_hand: 0, cost_value: 0}
-          - {deal_id: D3, units_on_hand: 50, cost_value: 500}
-      - input: ref('silver__sales_daily')
+          - {store_key: s1, date_key: '2026-01-01', units_on_hand: 100}
+          - {store_key: s1, date_key: '2026-02-01', units_on_hand: 999}
+          - {store_key: s2, date_key: '2026-01-01', units_on_hand: 0}
+          - {store_key: s3, date_key: '2026-01-01', units_on_hand: 40}
+      - input: ref('fct_sales')
         rows:
-          - {deal_id: D1, units_sold: 50, net_sales: 600}
-          - {deal_id: D2, units_sold: 0, net_sales: 0}
+          - {store_key: s1, units_sold: 40, net_sales: 400, cost_of_goods: 300, gross_margin: 100}
+          - {store_key: s1, units_sold: 10, net_sales: 100, cost_of_goods: null, gross_margin: null}
+          - {store_key: s2, units_sold: 5, net_sales: 50, cost_of_goods: 25, gross_margin: 25}
     expect:
       rows:
-        - {deal_id: D1, net_sales: 600, recovery_rate: 0.6, sell_through: 0.5}
-        - {deal_id: D2, net_sales: 0, recovery_rate: null, sell_through: null}
-        - {deal_id: D3, net_sales: 0, recovery_rate: 0, sell_through: 0}
+        - {store_key: s1, opening_units: 100, units_sold: 50, net_sales: 500, gross_margin_rate: 0.25, sell_through: 0.5}
+        - {store_key: s2, opening_units: 0, units_sold: 5, net_sales: 50, gross_margin_rate: 0.5, sell_through: null}
+        - {store_key: s3, opening_units: 40, units_sold: 0, net_sales: 0, gross_margin_rate: null, sell_through: 0}
